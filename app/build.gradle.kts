@@ -12,8 +12,10 @@ android {
         applicationId = "com.shopcallback.tracker"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // CI (see .github/workflows/build-apk.yml) overrides these via -PappVersionCode/-PappVersionName
+        // so every built APK is distinguishable; local builds fall back to these defaults.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("appVersionName") as String?) ?: "1.0"
     }
 
     buildTypes {
