@@ -80,6 +80,7 @@ app/src/test/java/com/shopcallback/tracker/
 - Create: `app/src/main/res/values/styles.xml`
 - Create: `app/src/main/java/com/shopcallback/tracker/CallbackTrackerApp.kt`
 - Create: `app/src/main/java/com/shopcallback/tracker/MainActivity.kt`
+- Create: `.gitignore`
 - Test: `app/src/test/java/com/shopcallback/tracker/SmokeTest.kt`
 
 **Interfaces:**
@@ -199,7 +200,7 @@ dependencies {
 `app/src/main/AndroidManifest.xml`:
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/auto">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
         android:name=".CallbackTrackerApp"
@@ -268,7 +269,20 @@ class MainActivity : ComponentActivity() {
 }
 ```
 
-- [ ] **Step 4: Write and run a smoke test**
+- [ ] **Step 4: Add `.gitignore`**
+
+`.gitignore`:
+```
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+captures/
+.cxx/
+```
+
+- [ ] **Step 5: Write and run a smoke test**
 
 `app/src/test/java/com/shopcallback/tracker/SmokeTest.kt`:
 ```kotlin
@@ -293,10 +307,10 @@ class SmokeTest {
 Run: `./gradlew :app:testDebugUnitTest --tests "com.shopcallback.tracker.SmokeTest"`
 Expected: BUILD SUCCESSFUL, 1 test passed. (Run `gradle wrapper --gradle-version 8.7` first if `gradlew` doesn't exist yet.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add settings.gradle.kts build.gradle.kts gradle.properties app/
+git add settings.gradle.kts build.gradle.kts gradle.properties .gitignore app/
 git commit -m "Scaffold Android project with Compose, Room and Robolectric"
 ```
 
