@@ -1665,7 +1665,7 @@ class CallbackViewModelTest {
 
     @Before
     fun setUp() {
-        setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         val directExecutor = Executor { it.run() }
         db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
@@ -1681,7 +1681,7 @@ class CallbackViewModelTest {
 
     @After
     fun tearDown() {
-        resetMain()
+        Dispatchers.resetMain()
         db.close()
     }
 
