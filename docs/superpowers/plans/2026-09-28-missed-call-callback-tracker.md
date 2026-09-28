@@ -6,7 +6,7 @@
 
 **Architecture:** A foreground service (`CallWatcherService`) observes the system Call Log via `ContentObserver`, feeds new entries into a pure detection/resolution engine (`CallLogScanner`), which updates a local Room database of "callback threads." Compose UI reads that database reactively through a `ViewModel`. No network, no backend — each phone is fully self-contained.
 
-**Tech Stack:** Kotlin, Jetpack Compose (Material3), Room 2.6.1, Kotlin Coroutines/Flow, Robolectric 4.13 for JVM unit tests, Gradle/AGP 8.5.2, Kotlin 1.9.24, JDK 17.
+**Tech Stack:** Kotlin, Jetpack Compose (Material3), Room 2.6.1, Kotlin Coroutines/Flow, Robolectric 4.14 for JVM unit tests, Gradle/AGP 8.5.2, Kotlin 1.9.24, JDK 17.
 
 **Spec:** `docs/superpowers/specs/2026-09-28-missed-call-callback-tracker-design.md`
 
@@ -188,7 +188,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("org.robolectric:robolectric:4.14")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
