@@ -1284,7 +1284,7 @@ This wires everything built so far into the always-on watcher.
 
 **Interfaces:**
 - Consumes: `AndroidCallLogSource`/`CallLogSource` (Task 6), `ContactLookup` (Task 7), `CallLogScanner` (Task 5), `SharedPrefsScanStateStore`/`ScanStateStore` (Task 4), `CallbackDatabase` (Task 3), `NotificationHelper` (Task 8).
-- Produces: `CallWatcherService` with test seams `testCallLogSource`, `testContactLookup`, `testDispatcher` (companion vars, set before `Robolectric.buildService(...).create()` in tests) and a public `suspend fun scanOnce()` — consumed by `BootReceiver` (Task 10) which starts this service, and exercised end-to-end in Task 14's manual checklist.
+- Produces: `CallWatcherService` with test seams `testCallLogSource`, `testContactLookup`, `testDispatcher`, `testDatabase` (companion vars, set before `Robolectric.buildService(...).create()` in tests) and a public `suspend fun scanOnce()` — consumed by `BootReceiver` (Task 10) which starts this service, and exercised end-to-end in Task 14's manual checklist. `testDatabase` exists because the production `CallbackDatabase.getInstance()` singleton (Task 3) has no test-friendly executors — tests substitute an in-memory Room database built with `.allowMainThreadQueries()` and a direct (same-thread) query/transaction executor, matching the pattern already used by Task 3's own DAO test and Task 11's view-model test, so Room's suspend calls stay on the same `TestCoroutineScheduler` the test drives with `advanceUntilIdle()` instead of racing against Room's real background executor.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1310,14 +1310,25 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CallWatcherServiceTest {
 
+    private lateinit var testDb: CallbackDatabase
+
+    private fun freshTestDatabase(): CallbackDatabase {
+        val directExecutor = java.util.concurrent.Executor { it.run() }
+        return Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            CallbackDatabase::class.java
+        ).allowMainThreadQueries()
+            .setQueryExecutor(directExecutor)
+            .setTransactionExecutor(directExecutor)
+            .build()
+    }
+
     @After
     fun tearDown() {
         CallWatcherService.testCallLogSource = null
         CallWatcherService.testDispatcher = null
-        CallbackDatabase.getInstance(ApplicationProvider.getApplicationContext()).apply {
-            clearAllTables()
-            close()
-        }
+        CallWatcherService.testDatabase = null
+        if (::testDb.isInitialized) testDb.close()
     }
 
     private fun fakeSource(entries: List<CallLogEntry>) = object : CallLogSource {
@@ -1329,12 +1340,13 @@ class CallWatcherServiceTest {
         CallWatcherService.testDispatcher = StandardTestDispatcher(testScheduler)
         CallWatcherService.testCallLogSource =
             fakeSource(listOf(CallLogEntry("9876543210", System.currentTimeMillis(), 0, CallDirection.MISSED)))
+        testDb = freshTestDatabase()
+        CallWatcherService.testDatabase = testDb
 
         val service = Robolectric.buildService(CallWatcherService::class.java).create().get()
         advanceUntilIdle()
 
-        val dao = CallbackDatabase.getInstance(ApplicationProvider.getApplicationContext()).callbackThreadDao()
-        val pending = dao.observePending().first()
+        val pending = testDb.callbackThreadDao().observePending().first()
         assertEquals(1, pending.size)
         assertEquals("9876543210", pending[0].phoneNumber)
         assertEquals(service.javaClass, CallWatcherService::class.java)
@@ -1343,6 +1355,8 @@ class CallWatcherServiceTest {
     @Test
     fun `onStartCommand returns START_STICKY`() {
         CallWatcherService.testCallLogSource = fakeSource(emptyList())
+        testDb = freshTestDatabase()
+        CallWatcherService.testDatabase = testDb
         val service = Robolectric.buildService(CallWatcherService::class.java).create().get()
 
         val result = service.onStartCommand(null, 0, 0)
@@ -1350,6 +1364,8 @@ class CallWatcherServiceTest {
     }
 }
 ```
+
+Add `import androidx.room.Room` and `import java.util.concurrent.Executor` (used qualified above, either form is fine) to this test file's imports.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -1393,7 +1409,8 @@ class CallWatcherService : Service() {
     private val scanner by lazy { CallLogScanner(dao()) }
     private lateinit var observer: ContentObserver
 
-    private fun dao() = CallbackDatabase.getInstance(applicationContext).callbackThreadDao()
+    private fun database() = testDatabase ?: CallbackDatabase.getInstance(applicationContext)
+    private fun dao() = database().callbackThreadDao()
 
     override fun onCreate() {
         super.onCreate()
@@ -1453,6 +1470,7 @@ class CallWatcherService : Service() {
         var testCallLogSource: CallLogSource? = null
         var testContactLookup: ContactLookup? = null
         var testDispatcher: CoroutineDispatcher? = null
+        var testDatabase: CallbackDatabase? = null
     }
 }
 ```
