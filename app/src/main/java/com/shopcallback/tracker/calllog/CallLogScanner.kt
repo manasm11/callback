@@ -10,15 +10,16 @@ class CallLogScanner(private val dao: CallbackThreadDao) {
 
     suspend fun applyNewEntries(entries: List<CallLogEntry>) {
         entries.sortedBy { it.timestamp }.forEach { entry ->
+            val number = PhoneNumberNormalizer.normalize(entry.rawNumber)
+            if (number.length < MIN_VALID_NUMBER_LENGTH) return@forEach
             when (entry.direction) {
-                CallDirection.MISSED -> handleMissed(entry)
-                CallDirection.INCOMING, CallDirection.OUTGOING -> handleAnsweredCandidate(entry)
+                CallDirection.MISSED -> handleMissed(entry, number)
+                CallDirection.INCOMING, CallDirection.OUTGOING -> handleAnsweredCandidate(entry, number)
             }
         }
     }
 
-    private suspend fun handleMissed(entry: CallLogEntry) {
-        val number = PhoneNumberNormalizer.normalize(entry.rawNumber)
+    private suspend fun handleMissed(entry: CallLogEntry, number: String) {
         val existing = dao.findByNumber(number)
 
         val updated = if (existing != null && existing.status == CallbackStatus.PENDING) {
@@ -38,10 +39,9 @@ class CallLogScanner(private val dao: CallbackThreadDao) {
         dao.upsert(updated)
     }
 
-    private suspend fun handleAnsweredCandidate(entry: CallLogEntry) {
+    private suspend fun handleAnsweredCandidate(entry: CallLogEntry, number: String) {
         if (entry.durationSeconds <= 1) return
 
-        val number = PhoneNumberNormalizer.normalize(entry.rawNumber)
         val existing = dao.findByNumber(number) ?: return
 
         if (existing.status == CallbackStatus.PENDING && entry.timestamp > existing.firstMissedAt) {
@@ -52,5 +52,9 @@ class CallLogScanner(private val dao: CallbackThreadDao) {
                 reason = ResolvedReason.AUTO_ANSWERED
             )
         }
+    }
+
+    companion object {
+        private const val MIN_VALID_NUMBER_LENGTH = 5
     }
 }
