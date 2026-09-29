@@ -59,6 +59,11 @@ class PendingCallbacksScreenTest {
     }
 
     @Test
+    fun `callbacks are listed under a day header`() {
+        composeRule.onNodeWithText("Today · 1").assertIsDisplayed()
+    }
+
+    @Test
     fun `mark resolved asks for confirmation before resolving`() {
         composeRule.onNodeWithText("Mark resolved").performClick()
 

@@ -1,5 +1,6 @@
 package com.shopcallback.tracker.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,22 +19,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.shopcallback.tracker.data.ResolvedReason
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(viewModel: CallbackViewModel) {
     val history by viewModel.historyThreads.collectAsState()
+    val groups = groupByDayNewestFirst(history, { it.resolvedAt ?: 0L }, System.currentTimeMillis())
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(history, key = { it.phoneNumber + it.resolvedAt }) { thread ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(thread.displayName ?: thread.phoneNumber, style = MaterialTheme.typography.titleMedium)
-                    val reasonText = if (thread.resolvedReason == ResolvedReason.MANUAL) "marked resolved" else "answered"
-                    Text("Resolved · $reasonText")
+        groups.forEach { group ->
+            stickyHeader(key = "day-${group.epochDay}") { DayHeader(group) }
+            items(group.items, key = { it.phoneNumber }) { thread ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(thread.displayName ?: thread.phoneNumber, style = MaterialTheme.typography.titleMedium)
+                        val reasonText = if (thread.resolvedReason == ResolvedReason.MANUAL) "marked resolved" else "answered"
+                        Text("${formatTime(thread.resolvedAt ?: 0L)} · $reasonText")
+                    }
+                    OutlinedButton(onClick = { viewModel.unresolve(thread.phoneNumber) }) { Text("Un-resolve") }
                 }
-                OutlinedButton(onClick = { viewModel.unresolve(thread.phoneNumber) }) { Text("Un-resolve") }
             }
         }
     }

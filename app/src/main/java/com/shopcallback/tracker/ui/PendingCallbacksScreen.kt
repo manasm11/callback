@@ -1,5 +1,6 @@
 package com.shopcallback.tracker.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,8 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.shopcallback.tracker.data.CallbackThreadEntity
-import java.util.concurrent.TimeUnit
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PendingCallbacksScreen(viewModel: CallbackViewModel, onCallBack: (android.content.Intent) -> Unit) {
     val pending by viewModel.pendingThreads.collectAsState()
@@ -46,13 +47,19 @@ fun PendingCallbacksScreen(viewModel: CallbackViewModel, onCallBack: (android.co
         return
     }
 
+    // Grouped by the latest missed call: whoever tried most recently is likeliest to pick up.
+    val groups = groupByDayNewestFirst(pending, { it.lastMissedAt }, System.currentTimeMillis())
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(pending, key = { it.phoneNumber }) { thread ->
-            PendingRow(
-                thread = thread,
-                onCallBack = { onCallBack(viewModel.callBackIntent(thread.phoneNumber)) },
-                onMarkResolved = { confirmingResolve = thread }
-            )
+        groups.forEach { group ->
+            stickyHeader(key = "day-${group.epochDay}") { DayHeader(group) }
+            items(group.items, key = { it.phoneNumber }) { thread ->
+                PendingRow(
+                    thread = thread,
+                    onCallBack = { onCallBack(viewModel.callBackIntent(thread.phoneNumber)) },
+                    onMarkResolved = { confirmingResolve = thread }
+                )
+            }
         }
     }
 }
@@ -72,7 +79,7 @@ private fun ConfirmResolveDialog(thread: CallbackThreadEntity, onConfirm: () -> 
 private fun PendingRow(thread: CallbackThreadEntity, onCallBack: () -> Unit, onMarkResolved: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Text(thread.displayName ?: thread.phoneNumber, style = MaterialTheme.typography.titleMedium)
-        Text("${thread.attemptCount} missed call${if (thread.attemptCount == 1) "" else "s"} · waiting ${waitingSince(thread.firstMissedAt)}")
+        Text("${formatTime(thread.lastMissedAt)} · ${missedCallsSummary(thread, System.currentTimeMillis())}")
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onCallBack) { Text("Call back") }
@@ -81,11 +88,9 @@ private fun PendingRow(thread: CallbackThreadEntity, onCallBack: () -> Unit, onM
     }
 }
 
-private fun waitingSince(firstMissedAt: Long): String {
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(System.currentTimeMillis() - firstMissedAt)
-    return when {
-        minutes < 60 -> "${minutes}m"
-        minutes < 1440 -> "${minutes / 60}h ${minutes % 60}m"
-        else -> "${minutes / 1440}d"
-    }
+/** e.g. "1 missed call", or "3 missed calls since Monday" when the first miss was on an earlier day. */
+private fun missedCallsSummary(thread: CallbackThreadEntity, now: Long): String {
+    val count = "${thread.attemptCount} missed call${if (thread.attemptCount == 1) "" else "s"}"
+    val firstDay = dayLabel(thread.firstMissedAt, now)
+    return if (firstDay == dayLabel(thread.lastMissedAt, now)) count else "$count since $firstDay"
 }
