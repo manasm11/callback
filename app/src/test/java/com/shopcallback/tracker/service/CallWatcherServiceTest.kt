@@ -1,5 +1,6 @@
 package com.shopcallback.tracker.service
 
+import android.Manifest
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.shopcallback.tracker.calllog.CallDirection
@@ -14,10 +15,12 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class CallWatcherServiceTest {
@@ -35,6 +38,12 @@ class CallWatcherServiceTest {
             .build()
     }
 
+    @Before
+    fun grantCallLogPermission() {
+        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>())
+            .grantPermissions(Manifest.permission.READ_CALL_LOG)
+    }
+
     @After
     fun tearDown() {
         CallWatcherService.testCallLogSource = null
@@ -44,7 +53,7 @@ class CallWatcherServiceTest {
     }
 
     private fun fakeSource(entries: List<CallLogEntry>) = object : CallLogSource {
-        override fun queryEntriesSince(timestampMillis: Long) = entries
+        override fun queryEntries(afterId: Long, afterDateMillis: Long) = entries
     }
 
     @Test
@@ -53,7 +62,7 @@ class CallWatcherServiceTest {
         CallWatcherService.testDatabase = testDb
         CallWatcherService.testDispatcher = StandardTestDispatcher(testScheduler)
         CallWatcherService.testCallLogSource =
-            fakeSource(listOf(CallLogEntry("9876543210", System.currentTimeMillis(), 0, CallDirection.MISSED)))
+            fakeSource(listOf(CallLogEntry(1L, "9876543210", System.currentTimeMillis(), 0, CallDirection.MISSED)))
 
         val service = Robolectric.buildService(CallWatcherService::class.java).create().get()
         advanceUntilIdle()

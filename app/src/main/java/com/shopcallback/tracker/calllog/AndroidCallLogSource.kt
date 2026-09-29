@@ -5,8 +5,9 @@ import android.provider.CallLog
 
 class AndroidCallLogSource(private val contentResolver: ContentResolver) : CallLogSource {
 
-    override fun queryEntriesSince(timestampMillis: Long): List<CallLogEntry> {
+    override fun queryEntries(afterId: Long, afterDateMillis: Long): List<CallLogEntry> {
         val projection = arrayOf(
+            CallLog.Calls._ID,
             CallLog.Calls.NUMBER,
             CallLog.Calls.DATE,
             CallLog.Calls.DURATION,
@@ -17,10 +18,11 @@ class AndroidCallLogSource(private val contentResolver: ContentResolver) : CallL
         contentResolver.query(
             CallLog.Calls.CONTENT_URI,
             projection,
-            "${CallLog.Calls.DATE} > ?",
-            arrayOf(timestampMillis.toString()),
-            "${CallLog.Calls.DATE} ASC"
+            "${CallLog.Calls._ID} > ? AND ${CallLog.Calls.DATE} > ?",
+            arrayOf(afterId.toString(), afterDateMillis.toString()),
+            "${CallLog.Calls._ID} ASC"
         )?.use { cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow(CallLog.Calls._ID)
             val numberIdx = cursor.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
             val dateIdx = cursor.getColumnIndexOrThrow(CallLog.Calls.DATE)
             val durationIdx = cursor.getColumnIndexOrThrow(CallLog.Calls.DURATION)
@@ -37,6 +39,7 @@ class AndroidCallLogSource(private val contentResolver: ContentResolver) : CallL
 
                 entries.add(
                     CallLogEntry(
+                        id = cursor.getLong(idIdx),
                         rawNumber = number,
                         timestamp = cursor.getLong(dateIdx),
                         durationSeconds = cursor.getInt(durationIdx),
