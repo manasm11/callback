@@ -18,7 +18,26 @@ android {
         versionName = (project.findProperty("appVersionName") as String?) ?: "1.0"
     }
 
+    // CI signs every APK with one persistent key (from repo secrets) so each build
+    // installs as an update over the previous one. Without it, each CI runner would
+    // generate a fresh random debug key and Android would refuse the update.
+    // Local builds, which don't set these variables, keep the default debug key.
+    val sharedKeystore = System.getenv("SIGNING_KEYSTORE_PATH")?.let { file(it) }
+    signingConfigs {
+        if (sharedKeystore != null) {
+            create("shared") {
+                storeFile = sharedKeystore
+                storePassword = System.getenv("SIGNING_PASSWORD")
+                keyAlias = "callback"
+                keyPassword = System.getenv("SIGNING_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (sharedKeystore != null) signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
         }
