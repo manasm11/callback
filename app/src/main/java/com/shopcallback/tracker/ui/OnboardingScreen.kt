@@ -1,6 +1,7 @@
 package com.shopcallback.tracker.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -52,11 +53,19 @@ fun OnboardingScreen(onAllGranted: () -> Unit) {
         )
     }
     var batteryExempted by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+    var permissionsPermanentlyDenied by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         permissionsGranted = results.values.all { it }
+        if (!permissionsGranted) {
+            val activity = context as? Activity
+            permissionsPermanentlyDenied = activity != null && results
+                .filterValues { granted -> !granted }
+                .keys
+                .any { permission -> !activity.shouldShowRequestPermissionRationale(permission) }
+        }
     }
 
     val batteryLauncher = rememberLauncherForActivityResult(
@@ -80,6 +89,19 @@ fun OnboardingScreen(onAllGranted: () -> Unit) {
         if (!permissionsGranted) {
             Button(onClick = { permissionLauncher.launch(REQUIRED_PERMISSIONS.toTypedArray()) }) {
                 Text("Grant call & contacts permissions")
+            }
+
+            if (permissionsPermanentlyDenied) {
+                Text("Android will no longer show the permission dialog. Enable the permissions manually in app settings, then come back.")
+                Button(onClick = {
+                    val intent = Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null)
+                    )
+                    context.startActivity(intent)
+                }) {
+                    Text("Open App Settings")
+                }
             }
         }
 
