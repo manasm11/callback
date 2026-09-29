@@ -26,6 +26,9 @@ interface CallbackThreadDao {
     )
     suspend fun markResolved(phoneNumber: String, status: CallbackStatus, resolvedAt: Long, reason: ResolvedReason)
 
+    @Query("DELETE FROM callback_threads WHERE status = 'PENDING' AND lastMissedAt < :cutoff")
+    suspend fun deletePendingLastMissedBefore(cutoff: Long)
+
     @Query(
         "UPDATE callback_threads SET status = 'PENDING', resolvedAt = NULL, resolvedReason = NULL " +
             "WHERE phoneNumber = :phoneNumber"

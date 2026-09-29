@@ -40,10 +40,11 @@ class PendingCallbacksScreenTest {
             .setTransactionExecutor(directExecutor)
             .build()
         dao = db.callbackThreadDao()
+        val recent = System.currentTimeMillis()
         runBlocking {
             dao.upsert(
                 CallbackThreadEntity(
-                    phoneNumber = "9876543210", displayName = "Priya", firstMissedAt = 1L, lastMissedAt = 1L,
+                    phoneNumber = "9876543210", displayName = "Priya", firstMissedAt = recent, lastMissedAt = recent,
                     attemptCount = 1, status = CallbackStatus.PENDING, resolvedAt = null, resolvedReason = null
                 )
             )

@@ -28,7 +28,8 @@ class CallLogScannerTest {
             CallbackDatabase::class.java
         ).allowMainThreadQueries().build()
         dao = db.callbackThreadDao()
-        scanner = CallLogScanner(dao)
+        // Pin the clock just after the small fixed timestamps used below so none count as stale.
+        scanner = CallLogScanner(dao, now = { 10_000L })
     }
 
     @After
@@ -144,5 +145,57 @@ class CallLogScannerTest {
 
         assertNull(dao.findByNumber("1"))
         assertNull(dao.findByNumber(""))
+    }
+
+    @Test
+    fun `missed calls older than 7 days are ignored`() = runBlocking {
+        val scanner = CallLogScanner(dao, now = { NOW })
+        scanner.applyNewEntries(
+            listOf(
+                CallLogEntry(30L, "9876543210", NOW - 8 * DAY, 0, CallDirection.MISSED),
+                CallLogEntry(31L, "9123456789", NOW - 6 * DAY, 0, CallDirection.MISSED)
+            )
+        )
+
+        assertNull(dao.findByNumber("9876543210"))
+        assertEquals(CallbackStatus.PENDING, dao.findByNumber("9123456789")?.status)
+    }
+
+    @Test
+    fun `a missed call after a week of silence starts a fresh callback`() = runBlocking {
+        val scanner = CallLogScanner(dao, now = { NOW })
+        scanner.applyNewEntries(listOf(CallLogEntry(40L, "9876543210", NOW - 6 * DAY, 0, CallDirection.MISSED)))
+
+        val later = CallLogScanner(dao, now = { NOW + 2 * DAY })
+        later.applyNewEntries(listOf(CallLogEntry(41L, "9876543210", NOW + 2 * DAY, 0, CallDirection.MISSED)))
+
+        val thread = dao.findByNumber("9876543210")
+        assertEquals(1, thread?.attemptCount)
+        assertEquals(NOW + 2 * DAY, thread?.firstMissedAt)
+    }
+
+    @Test
+    fun `dropStalePending removes only pending callbacks last missed over 7 days ago`() = runBlocking {
+        val scanner = CallLogScanner(dao, now = { NOW - 10 * DAY })
+        scanner.applyNewEntries(
+            listOf(
+                CallLogEntry(50L, "9000000001", NOW - 10 * DAY, 0, CallDirection.MISSED),
+                CallLogEntry(51L, "9000000002", NOW - 10 * DAY, 0, CallDirection.MISSED),
+                CallLogEntry(52L, "9000000002", NOW - 10 * DAY + 60_000, 30, CallDirection.OUTGOING)
+            )
+        )
+        CallLogScanner(dao, now = { NOW - DAY })
+            .applyNewEntries(listOf(CallLogEntry(53L, "9000000003", NOW - DAY, 0, CallDirection.MISSED)))
+
+        CallLogScanner(dao, now = { NOW }).dropStalePending()
+
+        assertNull(dao.findByNumber("9000000001"))
+        assertEquals(CallbackStatus.RESOLVED, dao.findByNumber("9000000002")?.status)
+        assertEquals(CallbackStatus.PENDING, dao.findByNumber("9000000003")?.status)
+    }
+
+    companion object {
+        private const val DAY = 24 * 60 * 60 * 1000L
+        private const val NOW = 100 * DAY
     }
 }

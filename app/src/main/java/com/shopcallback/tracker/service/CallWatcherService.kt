@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.TimeUnit
 
 class CallWatcherService : Service() {
 
@@ -72,7 +71,7 @@ class CallWatcherService : Service() {
                 }
                 val lastSeenId = scanStateStore.getLastSeenId()
                 val afterDate = if (lastSeenId == SharedPrefsScanStateStore.NOT_SET) {
-                    System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
+                    System.currentTimeMillis() - CallLogScanner.MAX_MISSED_CALL_AGE_MILLIS
                 } else {
                     0L
                 }
@@ -81,6 +80,7 @@ class CallWatcherService : Service() {
                     scanner.applyNewEntries(entries)
                     scanStateStore.setLastSeenId(entries.maxOf { it.id })
                 }
+                scanner.dropStalePending()
                 resolveMissingNames()
             } catch (e: Exception) {
                 Log.e(TAG, "scanOnce failed", e)

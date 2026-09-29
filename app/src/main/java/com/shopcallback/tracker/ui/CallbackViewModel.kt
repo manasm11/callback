@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.shopcallback.tracker.calllog.CallLogScanner
 import com.shopcallback.tracker.data.CallbackDatabase
 import com.shopcallback.tracker.data.CallbackStatus
 import com.shopcallback.tracker.data.CallbackThreadDao
@@ -19,8 +20,15 @@ import kotlinx.coroutines.launch
 
 class CallbackViewModel(
     application: Application,
-    private val dao: CallbackThreadDao = CallbackDatabase.getInstance(application).callbackThreadDao()
+    private val dao: CallbackThreadDao = CallbackDatabase.getInstance(application).callbackThreadDao(),
+    now: () -> Long = System::currentTimeMillis
 ) : AndroidViewModel(application) {
+
+    init {
+        // The service drops stale callbacks when it scans, but that only happens on call-log
+        // changes; also drop them on open so a week-old callback never lingers on screen.
+        viewModelScope.launch { CallLogScanner(dao, now).dropStalePending() }
+    }
 
     val pendingThreads: StateFlow<List<CallbackThreadEntity>> = dao.observePending()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

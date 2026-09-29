@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +90,21 @@ class CallbackViewModelTest {
         val updated = runBlocking { dao.findByNumber("444") }
         assertEquals(CallbackStatus.PENDING, updated?.status)
         assertEquals(null, updated?.resolvedReason)
+    }
+
+    @Test
+    fun `opening the app drops pending callbacks last missed over 7 days ago`() {
+        val day = 24 * 60 * 60 * 1000L
+        val now = 100 * day
+        runBlocking {
+            dao.upsert(thread("555", CallbackStatus.PENDING).copy(firstMissedAt = now - 9 * day, lastMissedAt = now - 8 * day))
+            dao.upsert(thread("666", CallbackStatus.PENDING).copy(firstMissedAt = now - 9 * day, lastMissedAt = now - 2 * day))
+        }
+
+        CallbackViewModel(ApplicationProvider.getApplicationContext(), dao, now = { now })
+
+        assertNull(runBlocking { dao.findByNumber("555") })
+        assertEquals(CallbackStatus.PENDING, runBlocking { dao.findByNumber("666") }?.status)
     }
 
     private fun thread(number: String, status: CallbackStatus) = CallbackThreadEntity(
