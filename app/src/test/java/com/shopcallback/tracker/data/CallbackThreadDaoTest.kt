@@ -82,6 +82,22 @@ class CallbackThreadDaoTest {
     }
 
     @Test
+    fun `reopen moves a resolved thread back to pending and clears resolution`() = runBlocking {
+        dao.upsert(pendingThread("555").copy(attemptCount = 3))
+        dao.markResolved("555", CallbackStatus.RESOLVED, 500L, ResolvedReason.MANUAL)
+
+        dao.reopen("555")
+
+        val reopened = dao.findByNumber("555")
+        assertEquals(CallbackStatus.PENDING, reopened?.status)
+        assertEquals(null, reopened?.resolvedAt)
+        assertEquals(null, reopened?.resolvedReason)
+        assertEquals(3, reopened?.attemptCount)
+        assertEquals(listOf("555"), dao.observePending().first().map { it.phoneNumber })
+        assertEquals(emptyList<String>(), dao.observeHistory().first().map { it.phoneNumber })
+    }
+
+    @Test
     fun `updateDisplayNameIfMissing only fills a null name`() = runBlocking {
         dao.upsert(pendingThread("444"))
         dao.updateDisplayNameIfMissing("444", "Priya")

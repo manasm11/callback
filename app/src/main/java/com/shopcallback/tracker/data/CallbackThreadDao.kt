@@ -27,6 +27,12 @@ interface CallbackThreadDao {
     suspend fun markResolved(phoneNumber: String, status: CallbackStatus, resolvedAt: Long, reason: ResolvedReason)
 
     @Query(
+        "UPDATE callback_threads SET status = 'PENDING', resolvedAt = NULL, resolvedReason = NULL " +
+            "WHERE phoneNumber = :phoneNumber"
+    )
+    suspend fun reopen(phoneNumber: String)
+
+    @Query(
         "UPDATE callback_threads SET displayName = :displayName " +
             "WHERE phoneNumber = :phoneNumber AND displayName IS NULL"
     )

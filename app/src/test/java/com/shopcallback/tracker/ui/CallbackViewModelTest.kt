@@ -82,6 +82,15 @@ class CallbackViewModelTest {
         assertEquals(ResolvedReason.MANUAL, updated?.resolvedReason)
     }
 
+    @Test
+    fun `unresolve moves a resolved thread back to pending`() {
+        runBlocking { dao.upsert(thread("444", CallbackStatus.RESOLVED)) }
+        viewModel.unresolve("444")
+        val updated = runBlocking { dao.findByNumber("444") }
+        assertEquals(CallbackStatus.PENDING, updated?.status)
+        assertEquals(null, updated?.resolvedReason)
+    }
+
     private fun thread(number: String, status: CallbackStatus) = CallbackThreadEntity(
         phoneNumber = number, displayName = null, firstMissedAt = 1L, lastMissedAt = 1L,
         attemptCount = 1, status = status,

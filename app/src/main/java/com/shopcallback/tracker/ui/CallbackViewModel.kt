@@ -34,6 +34,10 @@ class CallbackViewModel(
         }
     }
 
+    fun unresolve(phoneNumber: String) {
+        viewModelScope.launch { dao.reopen(phoneNumber) }
+    }
+
     fun callBackIntent(phoneNumber: String): Intent =
         Intent(Intent.ACTION_CALL, Uri.parse("tel:$phoneNumber"))
 
