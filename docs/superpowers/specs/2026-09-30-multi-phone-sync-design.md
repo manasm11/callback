@@ -101,7 +101,9 @@ network, every phone keeps working exactly as it does today.
 - **`ResolvedReason`** gains `REMOTE_ANSWERED` and `REMOTE_MANUAL`.
   These are stored as strings, so no data change is needed.
 - A real `Migration(1, 2)`: existing callbacks must survive an update.
-  Enable Room schema export so the migration can be tested.
+  It is tested by building a v1 database from Room's own v1 SQL and
+  opening it with the migration; Room validates the result. This needs
+  no schema export and no new dependencies.
 
 ### Sync identity and settings (SharedPreferences)
 
@@ -245,7 +247,7 @@ marked `applied`:**
     local and remote calls
   - remote MANUAL_RESOLVE and UNRESOLVE rules, including a later
     missed call staying pending
-  - `Migration(1, 2)` keeps existing rows (`MigrationTestHelper`)
+  - `Migration(1, 2)` keeps existing rows
   - the sync client against an in-process JDK `HttpServer`: upload,
     delete on 2xx, drop on 400, paging, server-reset handling, silent
     failure when unreachable
