@@ -4,8 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -26,21 +29,26 @@ import com.shopcallback.tracker.ui.PendingCallbacksScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // targetSdk 35 forces edge-to-edge on Android 15+; opt in everywhere for
+        // consistency, then pad content clear of the status/navigation bars below.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var ready by remember { mutableIntStateOf(0) }
+                    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                        var ready by remember { mutableIntStateOf(0) }
 
-                    if (ready == 0) {
-                        OnboardingScreen(onAllGranted = {
-                            ContextCompat.startForegroundService(
-                                this, Intent(this, CallWatcherService::class.java)
-                            )
-                            ready = 1
-                        })
-                    } else {
-                        MainTabs()
+                        if (ready == 0) {
+                            OnboardingScreen(onAllGranted = {
+                                ContextCompat.startForegroundService(
+                                    this@MainActivity, Intent(this@MainActivity, CallWatcherService::class.java)
+                                )
+                                ready = 1
+                            })
+                        } else {
+                            MainTabs()
+                        }
                     }
                 }
             }
