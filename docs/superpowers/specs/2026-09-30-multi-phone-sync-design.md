@@ -165,16 +165,27 @@ local missed call is processed first.
 - A pending thread for number N is resolved (`REMOTE_ANSWERED`,
   `resolvedAt` = the event's timestamp) if some remote CALL for N has
   `durationSeconds > 1` and
-  `timestamp > max(firstMissedAt, reopenedAt ?: 0)`.
+  `timestamp > max(lastMissedAt, reopenedAt ?: 0)`.
 
 **Remote manual events are applied once, in timestamp order, then
 marked `applied`:**
 - `MANUAL_RESOLVE` for N: if N's thread is PENDING and
-  `max(firstMissedAt, reopenedAt ?: 0) < event.timestamp`, resolve it
+  `max(lastMissedAt, reopenedAt ?: 0) < event.timestamp`, resolve it
   with `REMOTE_MANUAL` and `resolvedAt = event.timestamp`.
 - `UNRESOLVE` for N: if N's thread is RESOLVED and
   `resolvedAt <= event.timestamp`, reopen it. Reopening sets PENDING,
   clears the resolution fields and sets `reopenedAt = event.timestamp`.
+
+**Why `lastMissedAt`, not `firstMissedAt`.** A remote event can arrive
+long after it happened (server down, phone offline). By then this phone
+may have merged a newer missed call into the pending thread. Example:
+A misses N at 10:00, B calls N back at 10:30, A misses N again at
+11:00, and B's call only arrives at 12:00. Comparing against the
+thread's latest activity, `max(lastMissedAt, reopenedAt ?: 0)`, leaves
+the 11:00 callback pending — the same result as processing every event
+in time order. (The local answered-call rule below keeps
+`firstMissedAt`: the scanner reads the call log in time order, so it
+never sees a call after a later miss was merged.)
 
 ### Reopened-at (local rule change)
 
@@ -194,8 +205,9 @@ marked `applied`:**
 ### Android specifics
 
 - Add the `INTERNET` permission.
-- Add a network security config permitting cleartext HTTP. The app
-  talks to no other host, and Tailscale encrypts the link.
+- Permit cleartext HTTP with `android:usesCleartextTraffic="true"` on
+  the application. The app talks to no other host, and Tailscale
+  encrypts the link.
 
 ## 3. Setup and settings
 
@@ -230,6 +242,12 @@ marked `applied`:**
   idempotent.
 - **Clock differences:** phones use network time, so skew is seconds
   at most. That's negligible for "called back after the miss".
+- **Late remote Un-resolve:** if an Un-resolve arrives late — after
+  this phone has already called the customer back, at a time later
+  than the Un-resolve — it reopens the callback anyway, because this
+  phone's own call was scanned while the callback was still resolved.
+  The already-reached customer then shows as pending on this phone.
+  This fails safe: an extra entry, never a lost one.
 
 ## 5. Testing
 

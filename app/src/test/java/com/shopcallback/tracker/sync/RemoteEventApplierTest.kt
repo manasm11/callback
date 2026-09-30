@@ -111,6 +111,36 @@ class RemoteEventApplierTest {
     }
 
     @Test
+    fun `a late remote call made before the latest miss leaves the callback pending`() = runBlocking {
+        threads.upsert(pending(firstMissedAt = 1000L).copy(lastMissedAt = 3000L, attemptCount = 2))
+        events.insertRemote(listOf(call("b:call:1", 2000L)))
+
+        applier.apply()
+        assertEquals(CallbackStatus.PENDING, threads.findByNumber(NUMBER)?.status)
+
+        events.insertRemote(listOf(call("b:call:2", 4000L)))
+        applier.apply()
+        val thread = threads.findByNumber(NUMBER)
+        assertEquals(ResolvedReason.REMOTE_ANSWERED, thread?.resolvedReason)
+        assertEquals(4000L, thread?.resolvedAt)
+    }
+
+    @Test
+    fun `a late remote mark resolved made before the latest miss leaves the callback pending`() = runBlocking {
+        threads.upsert(pending(firstMissedAt = 1000L).copy(lastMissedAt = 3000L, attemptCount = 2))
+        events.insertRemote(listOf(manual("b:manual:1", SyncEventType.MANUAL_RESOLVE, 2000L)))
+
+        applier.apply()
+        assertEquals(CallbackStatus.PENDING, threads.findByNumber(NUMBER)?.status)
+
+        events.insertRemote(listOf(manual("b:manual:2", SyncEventType.MANUAL_RESOLVE, 4000L)))
+        applier.apply()
+        val thread = threads.findByNumber(NUMBER)
+        assertEquals(ResolvedReason.REMOTE_MANUAL, thread?.resolvedReason)
+        assertEquals(4000L, thread?.resolvedAt)
+    }
+
+    @Test
     fun `un-resolve on another phone reopens a callback resolved before it`() = runBlocking {
         threads.upsert(resolved(resolvedAt = 2000L))
         events.insertRemote(listOf(manual("b:manual:1", SyncEventType.UNRESOLVE, 3000L)))

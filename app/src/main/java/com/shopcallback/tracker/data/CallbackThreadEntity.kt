@@ -24,3 +24,13 @@ data class CallbackThreadEntity(
 
 /** When the current callback began: its first missed call, or its un-resolve if that was later. */
 fun CallbackThreadEntity.callbackStart(): Long = maxOf(firstMissedAt, reopenedAt ?: 0L)
+
+/**
+ * This callback's latest activity: its last missed call, or its un-resolve if that was later.
+ *
+ * Remote rules compare against this rather than [callbackStart]: another phone's event can arrive
+ * long after it happened (server down, phone offline), after this phone has merged a newer missed
+ * call into the thread. A remote call or Mark resolved from before that newer miss must not clear
+ * it — using the latest activity gives the same result as processing all events in time order.
+ */
+fun CallbackThreadEntity.latestActivity(): Long = maxOf(lastMissedAt, reopenedAt ?: 0L)
