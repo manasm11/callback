@@ -35,6 +35,7 @@ class CallbackDatabaseMigrationTest {
             v1.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
             v1.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '72f6e56ac9aa7fd9ade168c98827483f')")
             v1.execSQL("INSERT INTO callback_threads VALUES ('9876543210', 'Priya', 100, 200, 2, 'PENDING', NULL, NULL)")
+            v1.execSQL("INSERT INTO callback_threads VALUES ('9123456789', NULL, 300, 400, 1, 'RESOLVED', 500, 'AUTO_ANSWERED')")
             v1.version = 1
         }
 
@@ -46,9 +47,20 @@ class CallbackDatabaseMigrationTest {
         try {
             val thread = db.callbackThreadDao().findByNumber("9876543210")
             assertEquals("Priya", thread?.displayName)
+            assertEquals(100L, thread?.firstMissedAt)
+            assertEquals(200L, thread?.lastMissedAt)
             assertEquals(2, thread?.attemptCount)
             assertEquals(CallbackStatus.PENDING, thread?.status)
             assertNull(thread?.reopenedAt)
+
+            val resolved = db.callbackThreadDao().findByNumber("9123456789")
+            assertNull(resolved?.displayName)
+            assertEquals(300L, resolved?.firstMissedAt)
+            assertEquals(400L, resolved?.lastMissedAt)
+            assertEquals(CallbackStatus.RESOLVED, resolved?.status)
+            assertEquals(500L, resolved?.resolvedAt)
+            assertEquals(ResolvedReason.AUTO_ANSWERED, resolved?.resolvedReason)
+            assertNull(resolved?.reopenedAt)
 
             db.syncEventDao().enqueue(listOf(OutboxEventEntity("d:call:1", SyncEventType.CALL, "9876543210", 300L, 40, "OUTGOING")))
             assertEquals(1, db.syncEventDao().outboxBatch(10).size)
