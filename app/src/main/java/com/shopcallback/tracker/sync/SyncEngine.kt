@@ -47,7 +47,8 @@ class SyncEngine(
                 Log.w(TAG, "could not reach sync server; will retry", e)
                 false
             }
-            applier.apply()
+            // Only the local apply step takes the shared lock, never the network I/O above.
+            CallbackRulesLock.mutex.withLock { applier.apply() }
             if (reached) settings.lastSyncAt = now()
             reached
         } catch (e: CancellationException) {
@@ -88,8 +89,9 @@ class SyncEngine(
                 continue
             }
             syncDao.insertRemote(page.events.map { it.event })
-            page.events.maxOfOrNull { it.seq }?.let { settings.cursor = it }
-            if (page.events.size < PULL_PAGE_SIZE) return
+            // lastSeq/pageSize count events skipped as unknown too, so those can't stall the cursor.
+            page.lastSeq?.let { settings.cursor = it }
+            if (page.pageSize < PULL_PAGE_SIZE) return
         }
     }
 

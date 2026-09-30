@@ -1,6 +1,7 @@
 package com.shopcallback.tracker.service
 
 import android.Manifest
+import android.content.Intent
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.shopcallback.tracker.calllog.CallDirection
@@ -90,6 +91,24 @@ class CallWatcherServiceTest {
 
         val result = service.onStartCommand(null, 0, 0)
         assertEquals(android.app.Service.START_STICKY, result)
+    }
+
+    @Test
+    fun `a storage error while saving a new server address does not crash the app`() = runTest {
+        testDb = freshTestDatabase()
+        CallWatcherService.testDatabase = testDb
+        CallWatcherService.testDispatcher = StandardTestDispatcher(testScheduler)
+        CallWatcherService.testCallLogSource =
+            fakeSource(listOf(CallLogEntry(1L, "9123456789", System.currentTimeMillis(), 30, CallDirection.OUTGOING)))
+        val service = Robolectric.buildService(CallWatcherService::class.java).create().get()
+        advanceUntilIdle()
+
+        // Re-sharing the past week's calls on a new address now fails with a storage error.
+        testDb.openHelper.writableDatabase.execSQL("DROP TABLE outbox_events")
+        val intent = Intent(CallWatcherService.ACTION_SERVER_CHANGED)
+            .putExtra(CallWatcherService.EXTRA_SERVER_URL, "http://127.0.0.1:1")
+        service.onStartCommand(intent, 0, 0)
+        advanceUntilIdle() // runTest fails the test if the launched coroutine throws
     }
 
     @Test

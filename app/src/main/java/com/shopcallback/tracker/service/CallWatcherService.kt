@@ -19,12 +19,14 @@ import com.shopcallback.tracker.contacts.ContactLookup
 import com.shopcallback.tracker.data.CallbackDatabase
 import com.shopcallback.tracker.data.OutboxEventEntity
 import com.shopcallback.tracker.notification.NotificationHelper
+import com.shopcallback.tracker.sync.CallbackRulesLock
 import com.shopcallback.tracker.sync.OutboxEvents
 import com.shopcallback.tracker.sync.RemoteEventApplier
 import com.shopcallback.tracker.sync.SyncEngine
 import com.shopcallback.tracker.sync.SyncSettings
 import com.shopcallback.tracker.util.ScanStateStore
 import com.shopcallback.tracker.util.SharedPrefsScanStateStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +36,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class CallWatcherService : Service() {
@@ -47,7 +48,6 @@ class CallWatcherService : Service() {
     private val syncSettings by lazy { SyncSettings(applicationContext) }
     private val remoteEventApplier by lazy { RemoteEventApplier(dao(), syncDao()) }
     private val syncEngine by lazy { SyncEngine(syncSettings, syncDao(), remoteEventApplier, ::recentCallEvents) }
-    private val scanMutex = Mutex()
     private lateinit var observer: ContentObserver
 
     private fun database() = testDatabase ?: CallbackDatabase.getInstance(applicationContext)
@@ -85,8 +85,13 @@ class CallWatcherService : Service() {
         syncEngine.syncOnce()
     }
 
+    /**
+     * Holds [CallbackRulesLock] (which also keeps scans from overlapping) so a sync pass can't apply
+     * other phones' events between the scanner reading a callback and writing it back. It calls
+     * [RemoteEventApplier.apply] directly, not through [SyncEngine], so the lock is taken only once.
+     */
     suspend fun scanOnce() {
-        scanMutex.withLock {
+        CallbackRulesLock.mutex.withLock {
             try {
                 if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG)
                     != PackageManager.PERMISSION_GRANTED
@@ -140,7 +145,16 @@ class CallWatcherService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val newServerUrl = intent?.takeIf { it.action == ACTION_SERVER_CHANGED }?.getStringExtra(EXTRA_SERVER_URL)
         serviceScope.launch {
-            if (newServerUrl != null) syncEngine.onServerUrlChanged(newServerUrl)
+            if (newServerUrl != null) {
+                try {
+                    syncEngine.onServerUrlChanged(newServerUrl)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // An uncaught exception here would crash the app; the sync pass below still runs.
+                    Log.e(TAG, "could not switch to the new sync server", e)
+                }
+            }
             syncEngine.syncOnce()
         }
         return START_STICKY

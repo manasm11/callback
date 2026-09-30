@@ -24,7 +24,16 @@ class SyncClient(baseUrl: String) {
     }
 
     data class PulledEvent(val seq: Long, val event: RemoteEventEntity)
-    data class Pull(val serverId: String, val latestSeq: Long, val events: List<PulledEvent>)
+    data class Pull(
+        val serverId: String,
+        val latestSeq: Long,
+        /** This page's events, minus any of a type this app version doesn't know. */
+        val events: List<PulledEvent>,
+        /** Highest seq on this page, skipped events included; null if the page was empty. */
+        val lastSeq: Long?,
+        /** How many events the page held, skipped ones included; a full page means more may follow. */
+        val pageSize: Int
+    )
 
     fun health(): String = JSONObject(request("GET", "/health").body).getString("serverId")
 
@@ -39,11 +48,13 @@ class SyncClient(baseUrl: String) {
 
     fun pull(deviceId: String, after: Long): Pull {
         val json = JSONObject(request("GET", "/events?after=$after&device=${URLEncoder.encode(deviceId, "UTF-8")}").body)
-        val events = json.getJSONArray("events")
+        val page = json.getJSONArray("events").let { array -> (0 until array.length()).map { array.getJSONObject(it) } }
         return Pull(
             serverId = json.getString("serverId"),
             latestSeq = json.getLong("latestSeq"),
-            events = (0 until events.length()).map { events.getJSONObject(it).toPulledEvent() }
+            events = page.mapNotNull { it.toPulledEvent() },
+            lastSeq = page.maxOfOrNull { it.getLong("seq") },
+            pageSize = page.size
         )
     }
 
@@ -82,17 +93,21 @@ class SyncClient(baseUrl: String) {
             direction?.let { put("direction", it) }
         }
 
-    private fun JSONObject.toPulledEvent() = PulledEvent(
-        seq = getLong("seq"),
-        event = RemoteEventEntity(
-            eventId = getString("eventId"),
-            type = SyncEventType.valueOf(getString("type")),
-            number = getString("number"),
-            timestamp = getLong("timestamp"),
-            durationSeconds = if (isNull("durationSeconds")) null else getInt("durationSeconds"),
-            direction = if (isNull("direction")) null else getString("direction")
+    /** Null for an event type from a newer app version: this one can't apply it, so skips it. */
+    private fun JSONObject.toPulledEvent(): PulledEvent? {
+        val type = SyncEventType.entries.firstOrNull { it.name == getString("type") } ?: return null
+        return PulledEvent(
+            seq = getLong("seq"),
+            event = RemoteEventEntity(
+                eventId = getString("eventId"),
+                type = type,
+                number = getString("number"),
+                timestamp = getLong("timestamp"),
+                durationSeconds = if (isNull("durationSeconds")) null else getInt("durationSeconds"),
+                direction = if (isNull("direction")) null else getString("direction")
+            )
         )
-    )
+    }
 
     private companion object {
         const val CONNECT_TIMEOUT_MILLIS = 5_000

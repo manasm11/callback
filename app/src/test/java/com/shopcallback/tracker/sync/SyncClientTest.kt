@@ -51,6 +51,29 @@ class SyncClientTest {
     }
 
     @Test
+    fun `events of an unknown type are skipped but still count toward the page`() {
+        server.addFromOtherPhone("other:future:1", "SOME_FUTURE_TYPE", "9876543210", 1000L)
+        server.addFromOtherPhone("other:manual:1", "MANUAL_RESOLVE", "9876543210", 2000L)
+        server.addFromOtherPhone("other:future:2", "SOME_FUTURE_TYPE", "9876543210", 3000L)
+
+        val pull = client.pull("phone-b", after = 0L)
+
+        assertEquals(
+            listOf(SyncClient.PulledEvent(2L, RemoteEventEntity("other:manual:1", SyncEventType.MANUAL_RESOLVE, "9876543210", 2000L))),
+            pull.events
+        )
+        assertEquals(3L, pull.lastSeq)
+        assertEquals(3, pull.pageSize)
+    }
+
+    @Test
+    fun `an empty page has no last seq`() {
+        val pull = client.pull("phone-b", after = 0L)
+        assertEquals(null, pull.lastSeq)
+        assertEquals(0, pull.pageSize)
+    }
+
+    @Test
     fun `a rejected upload is reported, not thrown`() {
         server.rejectUploads = true
         assertEquals(SyncClient.UploadResult.Rejected, client.upload("phone-a", emptyList()))

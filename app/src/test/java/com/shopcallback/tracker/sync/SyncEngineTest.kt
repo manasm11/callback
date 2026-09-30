@@ -10,6 +10,9 @@ import com.shopcallback.tracker.data.OutboxEventEntity
 import com.shopcallback.tracker.data.ResolvedReason
 import com.shopcallback.tracker.data.SyncEventDao
 import com.shopcallback.tracker.data.SyncEventType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -110,6 +113,53 @@ class SyncEngineTest {
         assertTrue(engine.syncOnce())
 
         assertEquals(SyncEngine.PULL_PAGE_SIZE + 1L, settings.cursor)
+    }
+
+    @Test
+    fun `events of a type this app version doesn't know are skipped without stalling the cursor`() = runBlocking {
+        engine.onServerUrlChanged(server.url)
+        db.callbackThreadDao().upsert(pending(firstMissedAt = NOW - 60_000))
+        server.addFromOtherPhone("other:call:1", "CALL", NUMBER, NOW - 30_000, 40, "OUTGOING")
+        server.addFromOtherPhone("other:future:1", "SOME_FUTURE_TYPE", NUMBER, NOW - 20_000)
+
+        assertTrue(engine.syncOnce())
+
+        assertEquals(2L, settings.cursor)
+        assertEquals(ResolvedReason.REMOTE_ANSWERED, db.callbackThreadDao().findByNumber(NUMBER)?.resolvedReason)
+    }
+
+    @Test
+    fun `a full page of unknown events still moves on to the next page`() = runBlocking {
+        engine.onServerUrlChanged(server.url)
+        repeat(SyncEngine.PULL_PAGE_SIZE) {
+            server.addFromOtherPhone("other:future:$it", "SOME_FUTURE_TYPE", NUMBER, NOW - 1_000)
+        }
+        server.addFromOtherPhone("other:call:1", "CALL", NUMBER, NOW - 500, 40, "OUTGOING")
+
+        assertTrue(engine.syncOnce())
+
+        assertEquals(SyncEngine.PULL_PAGE_SIZE + 1L, settings.cursor)
+    }
+
+    @Test
+    fun `applying pulled events waits for the shared callback lock`() = runBlocking {
+        engine.onServerUrlChanged(server.url)
+        db.callbackThreadDao().upsert(pending(firstMissedAt = NOW - 60_000))
+        server.addFromOtherPhone("other:call:1", "CALL", NUMBER, NOW - 30_000, 40, "OUTGOING")
+
+        CallbackRulesLock.mutex.lock()
+        val pass = try {
+            async(Dispatchers.IO) { engine.syncOnce() }.also {
+                delay(500)
+                assertFalse(it.isCompleted)
+                assertEquals(CallbackStatus.PENDING, db.callbackThreadDao().findByNumber(NUMBER)?.status)
+            }
+        } finally {
+            CallbackRulesLock.mutex.unlock()
+        }
+
+        assertTrue(pass.await())
+        assertEquals(CallbackStatus.RESOLVED, db.callbackThreadDao().findByNumber(NUMBER)?.status)
     }
 
     @Test
