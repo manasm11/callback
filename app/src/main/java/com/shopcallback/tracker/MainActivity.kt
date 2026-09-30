@@ -26,6 +26,8 @@ import com.shopcallback.tracker.ui.CallbackViewModel
 import com.shopcallback.tracker.ui.HistoryScreen
 import com.shopcallback.tracker.ui.OnboardingScreen
 import com.shopcallback.tracker.ui.PendingCallbacksScreen
+import com.shopcallback.tracker.ui.SettingsScreen
+import com.shopcallback.tracker.ui.SettingsViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,11 +69,17 @@ private fun MainTabs() {
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Pending") })
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("History") })
+            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Settings") })
         }
-        if (tab == 0) {
-            PendingCallbacksScreen(viewModel) { intent -> context.startActivity(intent) }
-        } else {
-            HistoryScreen(viewModel)
+        when (tab) {
+            0 -> PendingCallbacksScreen(viewModel) { intent -> context.startActivity(intent) }
+            1 -> HistoryScreen(viewModel)
+            else -> {
+                // Fully qualified: the local `viewModel` above shadows the viewModel() function.
+                val settingsViewModel: SettingsViewModel =
+                    androidx.lifecycle.viewmodel.compose.viewModel(factory = SettingsViewModel.Factory(application))
+                SettingsScreen(settingsViewModel)
+            }
         }
     }
 }
