@@ -21,29 +21,41 @@ class SyncEngine(
     private val clientFor: (String) -> SyncClient = ::SyncClient,
     private val now: () -> Long = System::currentTimeMillis
 ) {
-    /** Runs one pass. Returns true if the server was reached. Never throws (except cancellation). */
+    /**
+     * Runs one pass: purges expired local events, uploads the outbox, pulls other phones' events,
+     * then applies them. Returns true if the server was reached this pass. Never throws (except
+     * cancellation) — any failure, including a local storage error, is logged and reported as an
+     * unreached pass, since this runs from an endless retry loop that must never be broken by it.
+     */
     suspend fun syncOnce(): Boolean = passLock.withLock {
-        val cutoff = now() - CallLogScanner.MAX_MISSED_CALL_AGE_MILLIS
-        syncDao.deleteOutboxBefore(cutoff)
-        syncDao.deleteRemoteBefore(cutoff)
+        try {
+            val cutoff = now() - CallLogScanner.MAX_MISSED_CALL_AGE_MILLIS
+            syncDao.deleteOutboxBefore(cutoff)
+            syncDao.deleteRemoteBefore(cutoff)
 
-        val url = settings.serverUrl
-        if (url.isBlank()) return@withLock false
+            val url = settings.serverUrl
+            if (url.isBlank()) return@withLock false
 
-        val client = clientFor(url)
-        val reached = try {
-            upload(client)
-            pull(client)
-            true
+            val client = clientFor(url)
+            val reached = try {
+                upload(client)
+                pull(client)
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "could not reach sync server; will retry", e)
+                false
+            }
+            applier.apply()
+            if (reached) settings.lastSyncAt = now()
+            reached
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "sync pass failed; will retry", e)
             false
         }
-        applier.apply()
-        if (reached) settings.lastSyncAt = now()
-        reached
     }
 
     /** The user saved a server address: forget the old server and re-share the past week's calls. */

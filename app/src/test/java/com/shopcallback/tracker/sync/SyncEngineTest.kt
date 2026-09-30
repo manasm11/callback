@@ -8,6 +8,7 @@ import com.shopcallback.tracker.data.CallbackStatus
 import com.shopcallback.tracker.data.CallbackThreadEntity
 import com.shopcallback.tracker.data.OutboxEventEntity
 import com.shopcallback.tracker.data.ResolvedReason
+import com.shopcallback.tracker.data.SyncEventDao
 import com.shopcallback.tracker.data.SyncEventType
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -154,6 +155,25 @@ class SyncEngineTest {
         }
         assertEquals(0L, settings.cursor)
         assertTrue(db.syncEventDao().outboxBatch(10).isEmpty())
+    }
+
+    @Test
+    fun `a local storage failure is reported as unreached, not thrown`() = runBlocking {
+        val throwingDao = object : SyncEventDao by db.syncEventDao() {
+            override suspend fun deleteOutboxBefore(cutoff: Long) {
+                throw IllegalStateException("simulated local storage failure")
+            }
+        }
+        val failingEngine = SyncEngine(
+            settings = settings,
+            syncDao = throwingDao,
+            applier = RemoteEventApplier(db.callbackThreadDao(), db.syncEventDao()),
+            recentCallEvents = { recentCalls },
+            now = { NOW }
+        )
+        failingEngine.onServerUrlChanged(server.url)
+
+        assertFalse(failingEngine.syncOnce())
     }
 
     @Test
