@@ -5,7 +5,8 @@ After=network-online.target tailscaled.service
 
 [Service]
 # Listen only on this PC's Tailscale address, so only tailnet devices can connect.
-ExecStart=/bin/sh -c 'exec /usr/bin/python3 /opt/callback-sync/callback_sync_server.py --host "$(tailscale ip -4)" --db /var/lib/callback-sync/events.db'
+# If Tailscale has no address yet, exit non-zero (never listen on every interface).
+ExecStart=/bin/sh -c 'ip=$(tailscale ip -4 | head -n1) && [ -n "$ip" ] && exec /usr/bin/python3 /opt/callback-sync/callback_sync_server.py --host "$ip" --db /var/lib/callback-sync/events.db'
 DynamicUser=yes
 StateDirectory=callback-sync
 # Tailscale may not have an address yet right after boot; keep retrying.

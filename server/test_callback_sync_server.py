@@ -1,5 +1,8 @@
+import http.client
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -147,10 +150,43 @@ class HttpApiTest(unittest.TestCase):
         self.assertEqual(self.request("POST", "/events", {"deviceId": "phone-a", "events": [{"type": "CALL"}]})[0], 400)
         self.assertEqual(self.request("GET", "/events?after=x&device=phone-b")[0], 400)
         self.assertEqual(self.request("GET", "/events")[0], 400)
+        self.assertEqual(self.post_with_content_length(-1), 400)
+
+    def post_with_content_length(self, length):
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1], timeout=5)
+        try:
+            connection.putrequest("POST", "/events")
+            connection.putheader("Content-Type", "application/json")
+            connection.putheader("Content-Length", str(length))
+            connection.endheaders()
+            return connection.getresponse().status
+        finally:
+            connection.close()
 
     def test_unknown_paths_get_404(self):
         self.assertEqual(self.request("GET", "/nope")[0], 404)
         self.assertEqual(self.request("POST", "/nope", {})[0], 404)
+
+
+class ListenAddressTest(unittest.TestCase):
+    def test_a_specific_address_is_accepted(self):
+        self.assertEqual(sync.listen_address_error("100.101.102.103"), None)
+        self.assertEqual(sync.listen_address_error("127.0.0.1"), None)
+
+    def test_empty_or_wildcard_addresses_are_rejected(self):
+        for host in ["", "  ", "0.0.0.0", "::", "[::]"]:
+            with self.subTest(host=host):
+                self.assertIsNotNone(sync.listen_address_error(host))
+
+    def test_the_server_exits_with_an_error_for_an_empty_host(self):
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "callback_sync_server.py")
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, script, "--host", "", "--port", "0", "--db", os.path.join(directory, "e.db")],
+                capture_output=True, text=True, timeout=10,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--host", result.stderr)
 
 
 if __name__ == "__main__":

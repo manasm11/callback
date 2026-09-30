@@ -175,6 +175,8 @@ def make_handler(store):
                 return
             try:
                 length = int(self.headers.get("Content-Length", 0))
+                if length < 0:
+                    raise ValueError("Content-Length must not be negative")
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict):
                     raise ValueError("body must be a JSON object")
@@ -200,12 +202,29 @@ def make_handler(store):
     return Handler
 
 
+WILDCARD_HOSTS = {"", "0.0.0.0", "::", "[::]"}
+
+
+def listen_address_error(host):
+    """Returns why `host` can't be listened on, or None if it's a specific address.
+
+    An empty or wildcard host would listen on every interface, not just Tailscale. That
+    happens when `tailscale ip -4` fails at boot, so it must fail loudly (systemd retries).
+    """
+    if host.strip() in WILDCARD_HOSTS:
+        return f"--host must be this PC's Tailscale address, not {host!r} (every interface)"
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Callback Tracker sync server")
     parser.add_argument("--host", required=True, help="address to listen on; use the PC's Tailscale IP")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--db", default="callback-sync.db", help="SQLite file path")
     args = parser.parse_args()
+    host_error = listen_address_error(args.host)
+    if host_error:
+        parser.error(host_error)
 
     store = EventStore(args.db)
     store.purge()

@@ -30,6 +30,9 @@ To update after a code change, repeat the first `install` line and run
 1. Install the Tailscale app and sign in to the same account.
 2. In Callback Tracker, open **Settings**, enter `http://<pc-tailscale-name>:8787`,
    tap **Test connection** (it should say "Connected ✓"), then **Save**.
+   The PC's name only works with MagicDNS turned on in Tailscale (the default for
+   new tailnets; see the DNS page of the Tailscale admin console). Otherwise use
+   the PC's `100.x.y.z` address from `tailscale ip -4`: `http://100.x.y.z:8787`.
 
 ## Check it works (on the real phones)
 
