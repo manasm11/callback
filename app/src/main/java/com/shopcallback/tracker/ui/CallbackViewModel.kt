@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 class CallbackViewModel(
     application: Application,
     private val dao: CallbackThreadDao = CallbackDatabase.getInstance(application).callbackThreadDao(),
-    now: () -> Long = System::currentTimeMillis
+    private val now: () -> Long = System::currentTimeMillis
 ) : AndroidViewModel(application) {
 
     init {
@@ -43,7 +43,7 @@ class CallbackViewModel(
     }
 
     fun unresolve(phoneNumber: String) {
-        viewModelScope.launch { dao.reopen(phoneNumber) }
+        viewModelScope.launch { dao.reopen(phoneNumber, now()) }
     }
 
     fun callBackIntent(phoneNumber: String): Intent =

@@ -14,4 +14,10 @@ class CallbackTypeConverters {
 
     @TypeConverter
     fun stringToReason(value: String?): ResolvedReason? = value?.let { ResolvedReason.valueOf(it) }
+
+    @TypeConverter
+    fun syncEventTypeToString(type: SyncEventType): String = type.name
+
+    @TypeConverter
+    fun stringToSyncEventType(value: String): SyncEventType = SyncEventType.valueOf(value)
 }

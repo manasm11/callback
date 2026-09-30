@@ -30,10 +30,10 @@ interface CallbackThreadDao {
     suspend fun deletePendingLastMissedBefore(cutoff: Long)
 
     @Query(
-        "UPDATE callback_threads SET status = 'PENDING', resolvedAt = NULL, resolvedReason = NULL " +
-            "WHERE phoneNumber = :phoneNumber"
+        "UPDATE callback_threads SET status = 'PENDING', resolvedAt = NULL, resolvedReason = NULL, " +
+            "reopenedAt = :reopenedAt WHERE phoneNumber = :phoneNumber"
     )
-    suspend fun reopen(phoneNumber: String)
+    suspend fun reopen(phoneNumber: String, reopenedAt: Long)
 
     @Query(
         "UPDATE callback_threads SET displayName = :displayName " +
