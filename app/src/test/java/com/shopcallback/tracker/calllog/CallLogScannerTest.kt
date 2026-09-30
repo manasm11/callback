@@ -194,6 +194,23 @@ class CallLogScannerTest {
         assertEquals(CallbackStatus.PENDING, dao.findByNumber("9000000003")?.status)
     }
 
+    @Test
+    fun `a call from before an un-resolve does not resolve the reopened callback`() = runBlocking {
+        dao.upsert(
+            com.shopcallback.tracker.data.CallbackThreadEntity(
+                phoneNumber = "9876543210", displayName = null, firstMissedAt = 1000L, lastMissedAt = 1000L,
+                attemptCount = 1, status = CallbackStatus.PENDING, resolvedAt = null, resolvedReason = null,
+                reopenedAt = 3000L
+            )
+        )
+
+        scanner.applyNewEntries(listOf(CallLogEntry(60L, "9876543210", 2000L, 30, CallDirection.OUTGOING)))
+        assertEquals(CallbackStatus.PENDING, dao.findByNumber("9876543210")?.status)
+
+        scanner.applyNewEntries(listOf(CallLogEntry(61L, "9876543210", 4000L, 30, CallDirection.OUTGOING)))
+        assertEquals(CallbackStatus.RESOLVED, dao.findByNumber("9876543210")?.status)
+    }
+
     companion object {
         private const val DAY = 24 * 60 * 60 * 1000L
         private const val NOW = 100 * DAY

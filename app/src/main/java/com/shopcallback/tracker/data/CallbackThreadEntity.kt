@@ -21,3 +21,6 @@ data class CallbackThreadEntity(
     /** When this callback was last un-resolved; calls before it no longer count as reaching the customer. */
     val reopenedAt: Long? = null
 )
+
+/** When the current callback began: its first missed call, or its un-resolve if that was later. */
+fun CallbackThreadEntity.callbackStart(): Long = maxOf(firstMissedAt, reopenedAt ?: 0L)

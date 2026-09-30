@@ -4,6 +4,7 @@ import com.shopcallback.tracker.data.CallbackStatus
 import com.shopcallback.tracker.data.CallbackThreadDao
 import com.shopcallback.tracker.data.CallbackThreadEntity
 import com.shopcallback.tracker.data.ResolvedReason
+import com.shopcallback.tracker.data.callbackStart
 import com.shopcallback.tracker.util.PhoneNumberNormalizer
 import java.util.concurrent.TimeUnit
 
@@ -60,7 +61,7 @@ class CallLogScanner(
 
         val existing = dao.findByNumber(number) ?: return
 
-        if (existing.status == CallbackStatus.PENDING && entry.timestamp > existing.firstMissedAt) {
+        if (existing.status == CallbackStatus.PENDING && entry.timestamp > existing.callbackStart()) {
             dao.markResolved(
                 phoneNumber = number,
                 status = CallbackStatus.RESOLVED,
@@ -71,7 +72,7 @@ class CallLogScanner(
     }
 
     companion object {
-        private const val MIN_VALID_NUMBER_LENGTH = 5
+        const val MIN_VALID_NUMBER_LENGTH = 5
         val MAX_MISSED_CALL_AGE_MILLIS = TimeUnit.DAYS.toMillis(7)
     }
 }
