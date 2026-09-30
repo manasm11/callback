@@ -11,6 +11,7 @@ import com.shopcallback.tracker.data.SyncEventDao
 import com.shopcallback.tracker.service.CallWatcherService
 import com.shopcallback.tracker.sync.SyncClient
 import com.shopcallback.tracker.sync.SyncSettings
+import com.shopcallback.tracker.sync.normalizeServerUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,7 +52,7 @@ class SettingsViewModel(
     fun testConnection(url: String) {
         _connection.value = "Checking…"
         viewModelScope.launch {
-            val reachable = withContext(Dispatchers.IO) { runCatching { clientFor(url.trim()).health() }.isSuccess }
+            val reachable = withContext(Dispatchers.IO) { runCatching { clientFor(normalizeServerUrl(url)).health() }.isSuccess }
             _connection.value = if (reachable) "Connected ✓" else "Can't reach server"
         }
     }
@@ -62,7 +63,7 @@ class SettingsViewModel(
         app.startForegroundService(
             Intent(app, CallWatcherService::class.java)
                 .setAction(CallWatcherService.ACTION_SERVER_CHANGED)
-                .putExtra(CallWatcherService.EXTRA_SERVER_URL, url.trim())
+                .putExtra(CallWatcherService.EXTRA_SERVER_URL, normalizeServerUrl(url))
         )
         _connection.value = null
     }

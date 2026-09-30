@@ -66,6 +66,21 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `test connection adds a missing http scheme`() = runBlocking {
+        viewModel.testConnection(server.url.removePrefix("http://"))
+        val result = withTimeout(5_000) { viewModel.connection.first { it != null && it != "Checking…" } }
+        assertEquals("Connected ✓", result)
+    }
+
+    @Test
+    fun `saving adds a missing http scheme`() {
+        viewModel.save(" shop-pc:8787 ")
+
+        val started = shadowOf(application).nextStartedService
+        assertEquals("http://shop-pc:8787", started.getStringExtra(CallWatcherService.EXTRA_SERVER_URL))
+    }
+
+    @Test
     fun `saving hands the trimmed address to the service`() {
         viewModel.save("  http://shop-pc:8787  ")
 
