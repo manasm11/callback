@@ -35,7 +35,7 @@ fun HistoryScreen(viewModel: CallbackViewModel) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(thread.displayName ?: thread.phoneNumber, style = MaterialTheme.typography.titleMedium)
-                        val reasonText = if (thread.resolvedReason == ResolvedReason.MANUAL) "marked resolved" else "answered"
+                        val reasonText = resolvedReasonText(thread.resolvedReason)
                         Text("${formatTime(thread.resolvedAt ?: 0L)} · $reasonText")
                     }
                     OutlinedButton(onClick = { viewModel.unresolve(thread.phoneNumber) }) { Text("Un-resolve") }
@@ -43,4 +43,11 @@ fun HistoryScreen(viewModel: CallbackViewModel) {
             }
         }
     }
+}
+
+internal fun resolvedReasonText(reason: ResolvedReason?): String = when (reason) {
+    ResolvedReason.MANUAL -> "marked resolved"
+    ResolvedReason.REMOTE_MANUAL -> "marked resolved on another phone"
+    ResolvedReason.REMOTE_ANSWERED -> "answered on another phone"
+    ResolvedReason.AUTO_ANSWERED, null -> "answered"
 }

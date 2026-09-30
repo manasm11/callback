@@ -10,10 +10,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Cleartext HTTP is only used to reach the shop's sync server over Tailscale, which encrypts the link. -->
     <application
         android:name=".CallbackTrackerApp"
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:icon="@android:drawable/sym_call_missed"
         android:label="@string/app_name"
         android:theme="@style/Theme.CallbackTracker">

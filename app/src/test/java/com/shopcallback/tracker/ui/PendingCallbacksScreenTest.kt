@@ -49,7 +49,7 @@ class PendingCallbacksScreenTest {
                 )
             )
         }
-        viewModel = CallbackViewModel(ApplicationProvider.getApplicationContext(), dao)
+        viewModel = CallbackViewModel(ApplicationProvider.getApplicationContext(), dao, syncDao = db.syncEventDao())
         composeRule.setContent { PendingCallbacksScreen(viewModel) {} }
     }
 

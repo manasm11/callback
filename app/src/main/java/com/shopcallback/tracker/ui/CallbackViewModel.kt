@@ -13,6 +13,10 @@ import com.shopcallback.tracker.data.CallbackStatus
 import com.shopcallback.tracker.data.CallbackThreadDao
 import com.shopcallback.tracker.data.CallbackThreadEntity
 import com.shopcallback.tracker.data.ResolvedReason
+import com.shopcallback.tracker.data.SyncEventDao
+import com.shopcallback.tracker.data.SyncEventType
+import com.shopcallback.tracker.sync.OutboxEvents
+import com.shopcallback.tracker.sync.SyncSettings
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -21,7 +25,9 @@ import kotlinx.coroutines.launch
 class CallbackViewModel(
     application: Application,
     private val dao: CallbackThreadDao = CallbackDatabase.getInstance(application).callbackThreadDao(),
-    private val now: () -> Long = System::currentTimeMillis
+    private val now: () -> Long = System::currentTimeMillis,
+    private val syncDao: SyncEventDao = CallbackDatabase.getInstance(application).syncEventDao(),
+    private val syncSettings: SyncSettings = SyncSettings(application)
 ) : AndroidViewModel(application) {
 
     init {
@@ -38,12 +44,23 @@ class CallbackViewModel(
 
     fun markResolvedManually(phoneNumber: String) {
         viewModelScope.launch {
-            dao.markResolved(phoneNumber, CallbackStatus.RESOLVED, System.currentTimeMillis(), ResolvedReason.MANUAL)
+            val at = now()
+            dao.markResolved(phoneNumber, CallbackStatus.RESOLVED, at, ResolvedReason.MANUAL)
+            share(SyncEventType.MANUAL_RESOLVE, phoneNumber, at)
         }
     }
 
     fun unresolve(phoneNumber: String) {
-        viewModelScope.launch { dao.reopen(phoneNumber, now()) }
+        viewModelScope.launch {
+            val at = now()
+            dao.reopen(phoneNumber, at)
+            share(SyncEventType.UNRESOLVE, phoneNumber, at)
+        }
+    }
+
+    /** Queues a manual action for the other phones; the service uploads it on its next sync. */
+    private suspend fun share(type: SyncEventType, phoneNumber: String, at: Long) {
+        syncDao.enqueue(listOf(OutboxEvents.manual(syncSettings.deviceId, type, phoneNumber, at)))
     }
 
     fun callBackIntent(phoneNumber: String): Intent =

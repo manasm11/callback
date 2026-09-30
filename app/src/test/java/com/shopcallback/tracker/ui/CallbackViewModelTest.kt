@@ -7,6 +7,7 @@ import com.shopcallback.tracker.data.CallbackStatus
 import com.shopcallback.tracker.data.CallbackThreadDao
 import com.shopcallback.tracker.data.CallbackThreadEntity
 import com.shopcallback.tracker.data.ResolvedReason
+import com.shopcallback.tracker.data.SyncEventType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,7 +43,7 @@ class CallbackViewModelTest {
             .build()
         dao = db.callbackThreadDao()
         val application = ApplicationProvider.getApplicationContext<android.app.Application>()
-        viewModel = CallbackViewModel(application, dao)
+        viewModel = CallbackViewModel(application, dao, syncDao = db.syncEventDao())
     }
 
     @After
@@ -101,10 +102,37 @@ class CallbackViewModelTest {
             dao.upsert(thread("666", CallbackStatus.PENDING).copy(firstMissedAt = now - 9 * day, lastMissedAt = now - 2 * day))
         }
 
-        CallbackViewModel(ApplicationProvider.getApplicationContext(), dao, now = { now })
+        CallbackViewModel(ApplicationProvider.getApplicationContext(), dao, now = { now }, syncDao = db.syncEventDao())
 
         assertNull(runBlocking { dao.findByNumber("555") })
         assertEquals(CallbackStatus.PENDING, runBlocking { dao.findByNumber("666") }?.status)
+    }
+
+    @Test
+    fun `manual actions are queued for the other phones`() {
+        runBlocking { dao.upsert(thread("777", CallbackStatus.PENDING)) }
+
+        viewModel.markResolvedManually("777")
+        viewModel.unresolve("777")
+
+        val queued = runBlocking { db.syncEventDao().outboxBatch(10) }
+        assertEquals(
+            listOf(SyncEventType.MANUAL_RESOLVE, SyncEventType.UNRESOLVE).toSet(),
+            queued.map { it.type }.toSet()
+        )
+        assertEquals(setOf("777"), queued.map { it.number }.toSet())
+    }
+
+    @Test
+    fun `unresolve records when it happened`() {
+        runBlocking { dao.upsert(thread("888", CallbackStatus.RESOLVED)) }
+        val fixedNow = CallbackViewModel(
+            ApplicationProvider.getApplicationContext(), dao, now = { 5_000L }, syncDao = db.syncEventDao()
+        )
+
+        fixedNow.unresolve("888")
+
+        assertEquals(5_000L, runBlocking { dao.findByNumber("888") }?.reopenedAt)
     }
 
     private fun thread(number: String, status: CallbackStatus) = CallbackThreadEntity(

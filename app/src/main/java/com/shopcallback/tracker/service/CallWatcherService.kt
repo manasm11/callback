@@ -17,7 +17,12 @@ import com.shopcallback.tracker.calllog.CallLogScanner
 import com.shopcallback.tracker.calllog.CallLogSource
 import com.shopcallback.tracker.contacts.ContactLookup
 import com.shopcallback.tracker.data.CallbackDatabase
+import com.shopcallback.tracker.data.OutboxEventEntity
 import com.shopcallback.tracker.notification.NotificationHelper
+import com.shopcallback.tracker.sync.OutboxEvents
+import com.shopcallback.tracker.sync.RemoteEventApplier
+import com.shopcallback.tracker.sync.SyncEngine
+import com.shopcallback.tracker.sync.SyncSettings
 import com.shopcallback.tracker.util.ScanStateStore
 import com.shopcallback.tracker.util.SharedPrefsScanStateStore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -25,7 +30,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,11 +44,15 @@ class CallWatcherService : Service() {
     private val contactLookup by lazy { testContactLookup ?: ContactLookup(contentResolver) }
     private val scanStateStore: ScanStateStore by lazy { SharedPrefsScanStateStore(applicationContext) }
     private val scanner by lazy { CallLogScanner(dao()) }
+    private val syncSettings by lazy { SyncSettings(applicationContext) }
+    private val remoteEventApplier by lazy { RemoteEventApplier(dao(), syncDao()) }
+    private val syncEngine by lazy { SyncEngine(syncSettings, syncDao(), remoteEventApplier, ::recentCallEvents) }
     private val scanMutex = Mutex()
     private lateinit var observer: ContentObserver
 
     private fun database() = testDatabase ?: CallbackDatabase.getInstance(applicationContext)
     private fun dao() = database().callbackThreadDao()
+    private fun syncDao() = database().syncEventDao()
 
     override fun onCreate() {
         super.onCreate()
@@ -50,7 +61,7 @@ class CallWatcherService : Service() {
 
         observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
-                serviceScope.launch { scanOnce() }
+                serviceScope.launch { scanAndSync() }
             }
         }
         contentResolver.registerContentObserver(CallLog.Calls.CONTENT_URI, true, observer)
@@ -58,7 +69,20 @@ class CallWatcherService : Service() {
         serviceScope.launch {
             dao().observePending().collect { pending -> updateNotification(pending.size) }
         }
-        serviceScope.launch { scanOnce() }
+        serviceScope.launch { scanAndSync() }
+        if (!testDisablePolling) {
+            serviceScope.launch {
+                while (isActive) {
+                    delay(SYNC_INTERVAL_MILLIS)
+                    syncEngine.syncOnce()
+                }
+            }
+        }
+    }
+
+    private suspend fun scanAndSync() {
+        scanOnce()
+        syncEngine.syncOnce()
     }
 
     suspend fun scanOnce() {
@@ -78,14 +102,23 @@ class CallWatcherService : Service() {
                 val entries = callLogSource.queryEntries(lastSeenId, afterDate)
                 if (entries.isNotEmpty()) {
                     scanner.applyNewEntries(entries)
+                    syncDao().enqueue(OutboxEvents.forCalls(syncSettings.deviceId, entries))
                     scanStateStore.setLastSeenId(entries.maxOf { it.id })
                 }
                 scanner.dropStalePending()
+                // Newly scanned missed calls may already have been answered on another phone.
+                remoteEventApplier.apply()
                 resolveMissingNames()
             } catch (e: Exception) {
                 Log.e(TAG, "scanOnce failed", e)
             }
         }
+    }
+
+    /** The past week's answered/outgoing calls, re-shared when sync is turned on or the server is reset. */
+    private suspend fun recentCallEvents(): List<OutboxEventEntity> {
+        val since = System.currentTimeMillis() - CallLogScanner.MAX_MISSED_CALL_AGE_MILLIS
+        return OutboxEvents.forCalls(syncSettings.deviceId, callLogSource.queryEntries(afterId = -1L, afterDateMillis = since))
     }
 
     private suspend fun resolveMissingNames() {
@@ -103,7 +136,15 @@ class CallWatcherService : Service() {
         getSystemService(NotificationManager::class.java).notify(NotificationHelper.NOTIFICATION_ID, notification)
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    /** Every app open (and every Settings save) lands here, so each one also triggers a sync. */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val newServerUrl = intent?.takeIf { it.action == ACTION_SERVER_CHANGED }?.getStringExtra(EXTRA_SERVER_URL)
+        serviceScope.launch {
+            if (newServerUrl != null) syncEngine.onServerUrlChanged(newServerUrl)
+            syncEngine.syncOnce()
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         contentResolver.unregisterContentObserver(observer)
@@ -115,9 +156,14 @@ class CallWatcherService : Service() {
 
     companion object {
         private const val TAG = "CallWatcherService"
+        private const val SYNC_INTERVAL_MILLIS = 30_000L
+        const val ACTION_SERVER_CHANGED = "com.shopcallback.tracker.action.SERVER_CHANGED"
+        const val EXTRA_SERVER_URL = "server_url"
         var testCallLogSource: CallLogSource? = null
         var testContactLookup: ContactLookup? = null
         var testDispatcher: CoroutineDispatcher? = null
         var testDatabase: CallbackDatabase? = null
+        /** Tests drive the dispatcher to idle, which an endless poll loop would never reach. */
+        var testDisablePolling = false
     }
 }
