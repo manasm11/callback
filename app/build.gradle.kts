@@ -64,37 +64,7 @@ android {
     }
 }
 
-// FakeSyncServer (test-only) uses com.sun.net.httpserver, a standard JDK class the Android
-// Gradle plugin's unit-test Kotlin compile classpath doesn't see: that classpath is restricted
-// to android.jar (kotlinc runs with -no-jdk) so test code can't accidentally rely on APIs a real
-// device wouldn't have, but android.jar never shipped this JDK-only package. Extract its classes
-// straight from this build's own JDK (jdk.httpserver, present in every JDK 9+) into a small
-// compile-only stub jar so it type-checks; the real classes are used at test run time regardless.
-val jdkHttpServerStubJar = tasks.register<Jar>("jdkHttpServerStubJar") {
-    val javaHome = System.getProperty("java.home")
-    val extractDir = layout.buildDirectory.dir("jdkHttpServerStubExtract")
-    doFirst {
-        val dir = extractDir.get().asFile
-        dir.deleteRecursively()
-        dir.mkdirs()
-        exec {
-            commandLine(
-                "$javaHome/bin/jmod", "extract",
-                "--dir", dir.absolutePath,
-                "$javaHome/jmods/jdk.httpserver.jmod"
-            )
-        }
-    }
-    from(extractDir.map { it.dir("classes") }) {
-        exclude("module-info.class")
-    }
-    archiveFileName.set("jdk-httpserver-stub.jar")
-    destinationDirectory.set(layout.buildDirectory.dir("jdkHttpServerStub"))
-}
-
 dependencies {
-    testCompileOnly(files(jdkHttpServerStubJar))
-
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
