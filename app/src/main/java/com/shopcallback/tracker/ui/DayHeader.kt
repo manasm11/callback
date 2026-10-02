@@ -16,7 +16,7 @@ import java.util.Date
 fun DayHeader(group: DayGroup<*>) {
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Text(
-            "${group.label} · ${group.items.size}",
+            group.headerText(),
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )

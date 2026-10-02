@@ -87,10 +87,3 @@ private fun PendingRow(thread: CallbackThreadEntity, onCallBack: () -> Unit, onM
         }
     }
 }
-
-/** e.g. "1 missed call", or "3 missed calls since Monday" when the first miss was on an earlier day. */
-private fun missedCallsSummary(thread: CallbackThreadEntity, now: Long): String {
-    val count = "${thread.attemptCount} missed call${if (thread.attemptCount == 1) "" else "s"}"
-    val firstDay = dayLabel(thread.firstMissedAt, now)
-    return if (firstDay == dayLabel(thread.lastMissedAt, now)) count else "$count since $firstDay"
-}

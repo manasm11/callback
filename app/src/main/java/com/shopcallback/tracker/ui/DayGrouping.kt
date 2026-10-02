@@ -10,6 +10,9 @@ import java.util.Locale
 
 data class DayGroup<T>(val epochDay: Long, val label: String, val items: List<T>)
 
+/** e.g. "Today · 3". Shared by the in-app day headers and the widget. */
+fun DayGroup<*>.headerText(): String = "$label · ${items.size}"
+
 /** Splits [items] by local calendar day, newest day first and newest item first within each day. */
 fun <T> groupByDayNewestFirst(
     items: List<T>,
