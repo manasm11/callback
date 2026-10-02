@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -68,7 +69,8 @@ class CallWatcherService : Service() {
         contentResolver.registerContentObserver(CallLog.Calls.CONTENT_URI, true, observer)
 
         serviceScope.launch {
-            dao().observePending().collect { pending ->
+            // Room re-emits on any table write; skip identical lists so the widget isn't redrawn for nothing.
+            dao().observePending().distinctUntilChanged().collect { pending ->
                 updateNotification(pending.size)
                 PendingCallbacksWidget.refreshAll(applicationContext)
             }
