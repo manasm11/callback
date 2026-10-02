@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Callback Tracker</string>
+    <string name="widget_name">Pending callbacks</string>
+    <string name="widget_description">Pending callbacks by day. Tap one to call back.</string>
 </resources>

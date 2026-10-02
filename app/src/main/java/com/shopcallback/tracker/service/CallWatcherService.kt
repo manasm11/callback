@@ -26,6 +26,7 @@ import com.shopcallback.tracker.sync.SyncEngine
 import com.shopcallback.tracker.sync.SyncSettings
 import com.shopcallback.tracker.util.ScanStateStore
 import com.shopcallback.tracker.util.SharedPrefsScanStateStore
+import com.shopcallback.tracker.widget.PendingCallbacksWidget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -67,7 +68,10 @@ class CallWatcherService : Service() {
         contentResolver.registerContentObserver(CallLog.Calls.CONTENT_URI, true, observer)
 
         serviceScope.launch {
-            dao().observePending().collect { pending -> updateNotification(pending.size) }
+            dao().observePending().collect { pending ->
+                updateNotification(pending.size)
+                PendingCallbacksWidget.refreshAll(applicationContext)
+            }
         }
         serviceScope.launch { scanAndSync() }
         if (!testDisablePolling) {
