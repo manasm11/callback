@@ -76,6 +76,11 @@ class CallbackViewModelTest {
     }
 
     @Test
+    fun `callBackIntent keeps a number with special characters whole`() {
+        assertEquals("*123#", viewModel.callBackIntent("*123#").data!!.schemeSpecificPart)
+    }
+
+    @Test
     fun `markResolvedManually updates the dao`() {
         runBlocking { dao.upsert(thread("333", CallbackStatus.PENDING)) }
         viewModel.markResolvedManually("333")

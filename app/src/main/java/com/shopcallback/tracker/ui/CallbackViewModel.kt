@@ -17,6 +17,7 @@ import com.shopcallback.tracker.data.SyncEventDao
 import com.shopcallback.tracker.data.SyncEventType
 import com.shopcallback.tracker.sync.OutboxEvents
 import com.shopcallback.tracker.sync.SyncSettings
+import com.shopcallback.tracker.widget.PendingCallbacksWidget
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -47,6 +48,7 @@ class CallbackViewModel(
             val at = now()
             dao.markResolved(phoneNumber, CallbackStatus.RESOLVED, at, ResolvedReason.MANUAL)
             share(SyncEventType.MANUAL_RESOLVE, phoneNumber, at)
+            PendingCallbacksWidget.refreshAll(getApplication())
         }
     }
 
@@ -55,6 +57,7 @@ class CallbackViewModel(
             val at = now()
             dao.reopen(phoneNumber, at)
             share(SyncEventType.UNRESOLVE, phoneNumber, at)
+            PendingCallbacksWidget.refreshAll(getApplication())
         }
     }
 
@@ -64,7 +67,7 @@ class CallbackViewModel(
     }
 
     fun callBackIntent(phoneNumber: String): Intent =
-        Intent(Intent.ACTION_CALL, Uri.parse("tel:$phoneNumber"))
+        Intent(Intent.ACTION_CALL, Uri.fromParts("tel", phoneNumber, null))
 
     class Factory(private val application: Application) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

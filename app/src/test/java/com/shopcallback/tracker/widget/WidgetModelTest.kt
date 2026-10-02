@@ -62,6 +62,12 @@ class WidgetModelTest {
         assertEquals("tel:9876543210", dial.data.toString())
     }
 
+    @Test
+    fun `numbers with special characters keep their whole value`() {
+        val intent = callBackIntent("*123#", canCall = false)
+        assertEquals("*123#", intent.data!!.schemeSpecificPart)
+    }
+
     private fun thread(number: String, name: String?, first: Long, last: Long, attempts: Int = 1) = CallbackThreadEntity(
         phoneNumber = number, displayName = name, firstMissedAt = first, lastMissedAt = last,
         attemptCount = attempts, status = CallbackStatus.PENDING, resolvedAt = null, resolvedReason = null

@@ -41,4 +41,4 @@ fun buildWidgetModel(
 
 /** Calls straight away when the app may place calls; otherwise opens the dialer so the tap still helps. */
 fun callBackIntent(phoneNumber: String, canCall: Boolean): Intent =
-    Intent(if (canCall) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber"))
+    Intent(if (canCall) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.fromParts("tel", phoneNumber, null))
