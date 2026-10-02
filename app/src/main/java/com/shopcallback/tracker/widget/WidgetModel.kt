@@ -16,7 +16,7 @@ data class WidgetSection(val header: String, val rows: List<WidgetRow>)
 
 data class WidgetRow(val title: String, val detail: String, val phoneNumber: String)
 
-/** Same grouping and text as the Pending tab: by latest missed call, newest day and caller first. */
+/** Same grouping and text as the Pending tab: by latest missed call, newest day first, oldest caller first within a day. */
 fun buildWidgetModel(
     pending: List<CallbackThreadEntity>,
     now: Long,
@@ -25,7 +25,7 @@ fun buildWidgetModel(
     locale: Locale = Locale.getDefault()
 ): WidgetModel = WidgetModel(
     total = pending.size,
-    sections = groupByDayNewestFirst(pending, { it.lastMissedAt }, now, zone, locale).map { group ->
+    sections = groupByDayNewestFirst(pending, { it.lastMissedAt }, now, zone, locale, oldestFirstWithinDay = true).map { group ->
         WidgetSection(
             header = group.headerText(),
             rows = group.items.map { thread ->

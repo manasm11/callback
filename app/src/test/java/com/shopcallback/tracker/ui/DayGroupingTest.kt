@@ -38,6 +38,22 @@ class DayGroupingTest {
     }
 
     @Test
+    fun `can list the oldest item first within each day while keeping the newest day first`() {
+        val items = listOf(
+            "mon-morning" to at(2026, 9, 28, 9, 0),
+            "today-early" to at(2026, 9, 30, 8, 0),
+            "mon-evening" to at(2026, 9, 28, 19, 0),
+            "today-late" to at(2026, 9, 30, 14, 0),
+        )
+
+        val groups = groupByDayNewestFirst(items, { it.second }, now, zone, Locale.US, oldestFirstWithinDay = true)
+
+        assertEquals(listOf("Today", "Monday"), groups.map { it.label })
+        assertEquals(listOf("today-early", "today-late"), groups[0].items.map { it.first })
+        assertEquals(listOf("mon-morning", "mon-evening"), groups[1].items.map { it.first })
+    }
+
+    @Test
     fun `no items gives no groups`() {
         assertEquals(emptyList<DayGroup<String>>(), groupByDayNewestFirst(emptyList<String>(), { 0L }, now, zone, Locale.US))
     }

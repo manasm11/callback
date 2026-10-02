@@ -35,7 +35,8 @@ app.
 - **Title bar:** "Pending callbacks · N", where N is the total number
   of pending callbacks. Tapping it opens `MainActivity`.
 - **Body:** a scrolling list grouped by day, newest day first, with
-  the most recent caller first within each day. It must be identical
+  the oldest caller first within each day (updated 2026-10-02: whoever
+  has waited longest that day comes first). It must be identical
   to the Pending tab: grouped by `lastMissedAt` and using the same day
   labels from the existing `groupByDayNewestFirst` / `dayLabel`.
   - **Day header:** "<label> · <count>", e.g. "Today · 3".

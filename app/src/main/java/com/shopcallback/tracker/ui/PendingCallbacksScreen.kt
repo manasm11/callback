@@ -47,8 +47,8 @@ fun PendingCallbacksScreen(viewModel: CallbackViewModel, onCallBack: (android.co
         return
     }
 
-    // Grouped by the latest missed call: whoever tried most recently is likeliest to pick up.
-    val groups = groupByDayNewestFirst(pending, { it.lastMissedAt }, System.currentTimeMillis())
+    // Grouped by the latest missed call, newest day first; within a day, whoever has waited longest comes first.
+    val groups = groupByDayNewestFirst(pending, { it.lastMissedAt }, System.currentTimeMillis(), oldestFirstWithinDay = true)
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         groups.forEach { group ->

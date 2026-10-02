@@ -13,17 +13,23 @@ data class DayGroup<T>(val epochDay: Long, val label: String, val items: List<T>
 /** e.g. "Today · 3". Shared by the in-app day headers and the widget. */
 fun DayGroup<*>.headerText(): String = "$label · ${items.size}"
 
-/** Splits [items] by local calendar day, newest day first and newest item first within each day. */
+/**
+ * Splits [items] by local calendar day, newest day first. Within each day items are newest first,
+ * or oldest first when [oldestFirstWithinDay] is set (pending callbacks: whoever has waited longest).
+ */
 fun <T> groupByDayNewestFirst(
     items: List<T>,
     timestampOf: (T) -> Long,
     now: Long,
     zone: ZoneId = ZoneId.systemDefault(),
-    locale: Locale = Locale.getDefault()
+    locale: Locale = Locale.getDefault(),
+    oldestFirstWithinDay: Boolean = false
 ): List<DayGroup<T>> =
     items.sortedByDescending(timestampOf)
         .groupBy { localDate(timestampOf(it), zone) }
-        .map { (date, dayItems) -> DayGroup(date.toEpochDay(), dayLabel(date, now, zone, locale), dayItems) }
+        .map { (date, dayItems) ->
+            DayGroup(date.toEpochDay(), dayLabel(date, now, zone, locale), if (oldestFirstWithinDay) dayItems.reversed() else dayItems)
+        }
 
 /** "Today", "Yesterday", a weekday name within the past week, otherwise e.g. "Wed, 23 Sep". */
 fun dayLabel(

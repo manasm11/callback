@@ -24,7 +24,7 @@ class WidgetModelTest {
     }
 
     @Test
-    fun `groups pending callbacks by latest missed call, newest day and caller first`() {
+    fun `groups pending callbacks by latest missed call, newest day first and oldest caller first within it`() {
         val model = buildWidgetModel(
             listOf(
                 thread("9000000001", "Priya", first = at(2026, 9, 28, 9, 0), last = at(2026, 9, 28, 9, 0)),
@@ -38,8 +38,8 @@ class WidgetModelTest {
         assertEquals(listOf("Today · 2", "Monday · 1"), model.sections.map { it.header })
         assertEquals(
             listOf(
-                WidgetRow("Ravi", "14:00 · 3 missed calls since Monday", "9000000003"),
-                WidgetRow("9000000002", "08:00 · 1 missed call", "9000000002")
+                WidgetRow("9000000002", "08:00 · 1 missed call", "9000000002"),
+                WidgetRow("Ravi", "14:00 · 3 missed calls since Monday", "9000000003")
             ),
             model.sections[0].rows
         )
