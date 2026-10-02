@@ -1,13 +1,14 @@
 package com.shopcallback.tracker.widget
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
+import android.content.Intent
 import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -15,6 +16,8 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.appWidgetBackground
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
@@ -38,23 +41,28 @@ import java.util.Date
 class PendingCallbacksWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val pending = CallbackDatabase.getInstance(context).callbackThreadDao().observePending().first()
+        val pendingFlow = CallbackDatabase.getInstance(context).callbackThreadDao().observePending()
+        val initial = pendingFlow.first()
         val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
-        val model = buildWidgetModel(pending, System.currentTimeMillis(), { timeFormat.format(Date(it)) })
-        val canCall = ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) ==
-            PackageManager.PERMISSION_GRANTED
 
+        // Collect inside the composition: a running Glance session ignores updateAll (it only
+        // recomposes), so values captured before provideContent would go stale.
         provideContent {
+            val pending by pendingFlow.collectAsState(initial)
+            val model = remember(pending) {
+                buildWidgetModel(pending, System.currentTimeMillis(), { timeFormat.format(Date(it)) })
+            }
             GlanceTheme {
-                Content(model, canCall)
+                Content(context, model)
             }
         }
     }
 
     @Composable
-    private fun Content(model: WidgetModel, canCall: Boolean) {
+    private fun Content(context: Context, model: WidgetModel) {
         Column(
-            modifier = GlanceModifier.fillMaxSize().background(GlanceTheme.colors.widgetBackground).padding(8.dp)
+            modifier = GlanceModifier.fillMaxSize().appWidgetBackground().cornerRadius(16.dp)
+                .background(GlanceTheme.colors.widgetBackground).padding(8.dp)
         ) {
             Text(
                 "Pending callbacks · ${model.total}",
@@ -80,7 +88,12 @@ class PendingCallbacksWidget : GlanceAppWidget() {
                         items(section.rows) { row ->
                             Column(
                                 modifier = GlanceModifier.fillMaxWidth().padding(4.dp)
-                                    .clickable(actionStartActivity(callBackIntent(row.phoneNumber, canCall)))
+                                    .clickable(
+                                        actionStartActivity(
+                                            Intent(context, CallBackActivity::class.java)
+                                                .putExtra(CallBackActivity.EXTRA_PHONE_NUMBER, row.phoneNumber)
+                                        )
+                                    )
                             ) {
                                 Text(row.title, style = TextStyle(fontWeight = FontWeight.Medium, color = GlanceTheme.colors.onSurface))
                                 Text(row.detail, style = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant))

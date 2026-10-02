@@ -47,6 +47,14 @@
             </intent-filter>
         </receiver>
 
+        <activity
+            android:name=".widget.CallBackActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <receiver
             android:name=".widget.PendingCallbacksWidgetReceiver"
             android:exported="true"

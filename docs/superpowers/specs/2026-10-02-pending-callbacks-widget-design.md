@@ -52,21 +52,34 @@ app.
 - If not (the permission was revoked after onboarding), start
   `ACTION_DIAL` with the same URI, so the tap still does something
   useful rather than failing silently.
-- The choice is made when the widget is rendered.
+- The choice is made when the row is tapped, not when the widget is
+  rendered: the row opens a small invisible, non-exported
+  `CallBackActivity` that checks `CALL_PHONE` and starts the right
+  intent, then finishes. A grant revoked since the last render can't
+  make the tap throw.
 
 ## Keeping it current
 
-- `CallWatcherService` already collects `observePending()` to update
-  its notification. On every emission it also asks Glance to update
-  all instances of the widget. That covers new missed calls, local and
-  remote resolutions, Mark resolved / Un-resolve, stale-callback
+- While a Glance session is running (about 45 seconds after each
+  update, extended by further events), the widget's composition
+  collects `observePending()` itself and rebuilds the groups whenever
+  the list changes. Glance does not re-run `provideGlance` for a live
+  session, so the data must be collected inside the composition rather
+  than read once before it.
+- For widgets with no running session, `CallWatcherService` already
+  collects `observePending()` (skipping identical lists) to update its
+  notification. On every change it also asks Glance to update all
+  instances of the widget, which starts a fresh session. That covers
+  new missed calls, local and remote resolutions, stale-callback
   cleanup and syncs from other phones.
+- Mark resolved / Un-resolve in the app also ask Glance to update the
+  widget directly, so they show up even when the service isn't
+  running.
 - The widget provider's `updatePeriodMillis` is 30 minutes (Android's
   minimum), so day labels roll over after midnight even when nothing
   changes.
-- Rendering reads the pending list straight from Room
-  (`observePending().first()`) and computes groups with the current
-  time.
+- Each session starts from the current pending list in Room and
+  computes groups with the current time whenever the list changes.
 
 ## Size and look
 
